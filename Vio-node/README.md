@@ -19,7 +19,7 @@
 1. The Internal the Z Axis of both systems (Px4 and Isaac) oppose each other 
     - quick fix is a transform of the Z Axis with the Camera_link topic 
         ```bash 
-        ros2 run tf2_ros static_transform_publisher 0 0 0 3.14159265359 0 0 camera0_link camera0_link_frd
+        ros2 run tf2_ros static_transform_publisher 0 0 0 1 0 0 0 camera0_link camera0_link_frd
         ```
 2. Subscribe Px4 via Mavros   
     - This launch file Subscribes to the MavRouter prebuilt from ArkOS (useable for GCS)
