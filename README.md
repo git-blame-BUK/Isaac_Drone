@@ -23,16 +23,16 @@ Depth Camera → State Estimation (VIO) + Point Cloud → Pathfinding
 ```
 
 ## Project Milestones
+9. Maiden Flight ready 
+8. Assembly complete
+7. Isaac publishes into ekf2 and seems to be precise  
+6. Nvidia Isaac is ready
+5. 3D Modeling the Drone Frame is done
+4. Material research for filament : PAHT-CF
+3. FC is ready
+2. Companion computer is ready
+1. ESC is done soldering
 
-1. Assembly complete
-2. Isaac publishes into ekf2 and seems to be precise  
-3. Nvidia Isaac is ready
-4. 3D Modeling the Drone Frame is done
-5. Material research for filament : PAHT-CF
-6. FC is ready
-7. Companion computer is ready
-8. ESC is done soldering
-9. (final) All subsystems verified and ready
 
 ## Hardware Gallery
 
