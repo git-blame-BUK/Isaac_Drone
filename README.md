@@ -32,7 +32,8 @@ DepthCamera --> State Estimation (Vio) + Pointcloud --> Pathfinding
 
 - Isaac publishes into ekf2 and seems to be precise  
 - Nvidia Isaac is ready
-- 3D Modeling the Drone Frame is done 
+- 3D Modeling the Drone Frame is done
+https://github.com/user-attachments/assets/a0ec3edb-5fa1-4d56-b7c1-96a39f53448b
 - Material reasearch for fillament : PAHT-CF
 - FC is ready
 - Companion computer is ready
