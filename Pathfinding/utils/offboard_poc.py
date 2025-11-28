@@ -228,14 +228,11 @@ class OffboardController(Node):
             )
             self.last_mode = state.mode
         # Mode gate to Offboard
-        if state.mode != "OFFBOARD":
-            self.get_logger().info(f"[DEBUG] mode not OFFBOARD")
+        if state.mode != "OFFBOARD": 
             return
-
-            # Later you will:
-            # - Call publish_position_setpoint(...) here.
-            # - Use an internal phase/state variable to decide target positions.
-
+        # Offboard logic here at 20 HZ
+            # self.publish_position_setpoint(x,y,z) 
+          
 def main(args=None):
     rclpy.init(args=args)
 
