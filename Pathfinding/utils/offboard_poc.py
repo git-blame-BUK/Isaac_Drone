@@ -73,7 +73,7 @@ class OffboardController(Node):
         self.current_pose: PoseStamped | None = None
         self.ref_pose: PoseStamped | None = None
 
-        # Timer for periodic logic (20 Hz)
+        # Timer for periodic logic (20 Hz) + state udpate 
         self.timer = self.create_timer(0.05, self.update)
 
         self.get_logger().info("OffboardController initialized. Waiting for FCU state and pose...")
@@ -192,12 +192,9 @@ class OffboardController(Node):
         if self.current_state is None:
             return
 
-        # Example: log current mode if not OFFBOARD (throttled)
+        # Mode gate to Offboard
         if self.current_state.mode != "OFFBOARD":
-            self.get_logger().throttle(
-                2000,
-                f"Current mode is {self.current_state.mode!r} – OFFBOARD not active."
-            )
+            return
 
         # Later you will:
         # - Call publish_position_setpoint(...) here.
