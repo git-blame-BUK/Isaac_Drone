@@ -73,6 +73,11 @@ class OffboardController(Node):
         self.current_pose: PoseStamped | None = None
         self.ref_pose: PoseStamped | None = None
 
+        # Mode Gate Helpers
+        self.last_mode = None
+        self.last_connected = None
+        self.last_state_time = None  # time of last /mavros/state message
+
         # Timer for periodic logic (20 Hz) + state udpate 
         self.timer = self.create_timer(0.05, self.update)
 
@@ -83,6 +88,7 @@ class OffboardController(Node):
     def state_cb(self, msg: State):
         """Update cached FCU state."""
         self.current_state = msg
+        self.last_state_time = self.get_clock().now()
 
     def pose_cb(self, msg: PoseStamped):
         """Update cached local pose."""
@@ -192,13 +198,42 @@ class OffboardController(Node):
         if self.current_state is None:
             return
 
-        # Mode gate to Offboard
-        if self.current_state.mode != "OFFBOARD":
+        now = self.get_clock().now()
+
+        # 1) Heartbeat check: did we lose MAVROS state messages?
+        #    If no state update for > 1.0 s → treat as disconnected.
+        if self.last_state_time is None or (now - self.last_state_time) > Duration(seconds=1.0):
+            if self.last_connected is not False:
+                self.get_logger().warn("[WARN] lost MAVROS state heartbeat – treating as disconnected")
+                self.last_connected = False
             return
 
-        # Later you will:
-        # - Call publish_position_setpoint(...) here.
-        # - Use an internal phase/state variable to decide target positions.
+        state = self.current_state
+
+        # 2) Connection edge logging
+        if self.last_connected is None or self.last_connected != state.connected:
+            self.get_logger().info(
+                f"[DEBUG] connected flag changed: {self.last_connected} -> {state.connected}"
+            )
+            self.last_connected = state.connected
+
+        # If not connected, do not run any offboard logic
+        if not state.connected:
+            return
+
+        # 3) Mode edge logging
+        if self.last_mode is None or self.last_mode != state.mode:
+            self.get_logger().info(
+                f"[DEBUG] mode changed: {self.last_mode!r} -> {state.mode!r}"
+            )
+            self.last_mode = state.mode
+        # Mode gate to Offboard
+        if state.mode != "OFFBOARD":
+            return
+
+            # Later you will:
+            # - Call publish_position_setpoint(...) here.
+            # - Use an internal phase/state variable to decide target positions.
 
 def main(args=None):
     rclpy.init(args=args)
