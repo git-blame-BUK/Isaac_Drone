@@ -229,6 +229,7 @@ class OffboardController(Node):
             self.last_mode = state.mode
         # Mode gate to Offboard
         if state.mode != "OFFBOARD":
+            self.get_logger().info(f"[DEBUG] mode not OFFBOARD")
             return
 
             # Later you will:
