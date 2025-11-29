@@ -261,10 +261,10 @@ class OffboardController(Node):
 
             # If OFFBOARD is now active, start going up
             if state.mode == "OFFBOARD":
-                self.phase = "going_up"
-                self.get_logger().info("[PHASE] OFFBOARD detected -> going_up (+1 m)")
+                self.phase = "starting"
+                self.get_logger().info("[PHASE] OFFBOARD detected -> starting")
 
-        elif self.phase == "going_up":
+        elif self.phase == "starting":
             # If we drop out of OFFBOARD, go back to waiting
             if state.mode != "OFFBOARD":
                 self.get_logger().warn("[PHASE] left OFFBOARD while going_up -> back to wait_offboard")
@@ -274,7 +274,8 @@ class OffboardController(Node):
             target_z = ref_z + 1.0
             self.publish_position_setpoint(ref_x, ref_y, target_z)
 
-            # Check if we are close enough to the target height
+            # Check if we are close enough to the target height or target destination (only part proof of concept) 
+            # later will be starting in progress and landing 
             if abs(cur_z - target_z) < 0.1:
                 self.phase = "going_down"
                 self.get_logger().info("[PHASE] reached +1 m -> going_down")
