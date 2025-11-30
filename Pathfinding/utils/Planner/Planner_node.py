@@ -15,7 +15,7 @@ from nav_msgs.msg import Path
 # nvblox ESDF service (check message fields with `ros2 interface show`)
 from nvblox_msgs.srv import EsdfAndGradients
 
-from planner_core import (
+from Planner_core import (
     VoxelGridInfo,
     VoxelGrid,
     esdf_to_cost_grid,
