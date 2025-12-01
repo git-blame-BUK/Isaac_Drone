@@ -1,8 +1,39 @@
 ## Dataflow 
-Nvblox publishes Map 
-    (Mission Manager sets Heading)
-        Trajectory Planner calculates Setpoints
-            List of Setpoints passes to offboard_controller
+Startup sequence
+You start:
+PX4 + MAVROS
+PX4 is running on the FCU.
+MAVROS bridges it to ROS and publishes key topics like:
+/mavros/local_position/pose (PoseStamped)
+/mavros/state (flight mode, armed, etc.)
+
+nvblox container (with Realsense / depth camera)
+The container runs realsense_example.launch.py.
+nvblox subscribes to depth + pose and builds:
+TSDF / ESDF internally,
+publishes various map-related topics (static_occupancy_grid, mesh, etc.),
+exposes the ESDF service, e.g. /nvblox_node/get_esdf_and_gradient.
+
+Mission_manager
+publishes a goal point
+
+Planner_node (inside the same nvblox container - with Planner_core)
+This node:
+subscribes to /mavros/local_position/pose
+subscribes to /uav/goal_pose
+calls the ESDF service to get a local 3D ESDF block
+runs A* on that ESDF-derived cost grid
+publishes a nav_msgs/Path on /uav/trajectory
+
+offboard_controller.py (same ROS domain)
+Subscribes to:
+/mavros/state
+/mavros/local_position/pose
+/uav/trajectory
+
+Publishes:
+/mavros/setpoint_position/local (or setpoint_raw/local)
+Contains state machine (phases like: wait_offboard, takeoff, holding, follow_trajectory, land).
 
 
 ### Ideas For Leightweight Trjectory Planning
