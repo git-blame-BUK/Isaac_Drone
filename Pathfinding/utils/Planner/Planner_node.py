@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # uav_3d_trajectory_planner_node.py
+# has to be started inside ov nvblox dev container depends on nvblox ROS2 package nvblox_msgs
 
 from __future__ import annotations
 

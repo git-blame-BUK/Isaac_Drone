@@ -242,7 +242,7 @@ class OffboardController(Node):
             # First phase: wait for OFFBOARD while streaming hold-setpoints
             self.phase = "wait_offboard"
 
-        # Extract some handy values
+        # Extract current pose
         cur_z = self.current_pose.pose.position.z
         ref_x = self.ref_pose.pose.position.x
         ref_y = self.ref_pose.pose.position.y
@@ -261,10 +261,17 @@ class OffboardController(Node):
 
             # If OFFBOARD is now active, start going up
             if state.mode == "OFFBOARD":
-                self.phase = "starting"
+                self.phase = "taking_off"
                 self.get_logger().info("[PHASE] OFFBOARD detected -> starting")
 
-        elif self.phase == "starting":
+        elif self.phase == "following_trajectory":
+            # If we drop out of OFFBOARD, go back to waiting
+            if state.mode != "OFFBOARD":
+                self.get_logger().warn("[PHASE] left OFFBOARD while following_trajectory -> back to wait_offboard")
+                self.phase = "wait_offboard"
+                return
+
+        elif self.phase == "taking_off":
             # If we drop out of OFFBOARD, go back to waiting
             if state.mode != "OFFBOARD":
                 self.get_logger().warn("[PHASE] left OFFBOARD while going_up -> back to wait_offboard")
@@ -277,10 +284,10 @@ class OffboardController(Node):
             # Check if we are close enough to the target height or target destination (only part proof of concept) 
             # later will be starting in progress and landing 
             if abs(cur_z - target_z) < 0.1:
-                self.phase = "going_down"
+                self.phase = "landing"
                 self.get_logger().info("[PHASE] reached +1 m -> going_down")
 
-        elif self.phase == "going_down":
+        elif self.phase == "landing":
             # If we drop out of OFFBOARD, go back to waiting
             if state.mode != "OFFBOARD":
                 self.get_logger().warn("[PHASE] left OFFBOARD while going_down -> back to wait_offboard")
