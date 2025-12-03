@@ -28,7 +28,7 @@ Depth Camera → State Estimation (VIO) + Point Cloud → Pathfinding
 3. FC is ready
 4. Material research for filament : PAHT-CF
 5. 3D Modeling the Drone Frame is done
-6. 6. Nvidia Isaac is ready
+6. Nvidia Isaac is ready
 7. Isaac publishes into ekf2 and seems to be precise  
 8. Assembly complete
 9. Maiden Flight ready 
