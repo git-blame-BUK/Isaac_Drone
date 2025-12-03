@@ -15,16 +15,13 @@ class OffboardController(Node):
     """
     Basic offboard control demo.
 
-    Behavior:
-    - You arm and switch to OFFBOARD manually in QGC.
-    - Node:
-      - waits for connection
-      - waits for valid local pose
-      - streams hold-setpoints at start position
-      - when it detects OFFBOARD:
-          -> climb +1 m
-          -> descend back to start height
-          -> keep holding there
+    Procedure:
+    - Arming and OFFBOARD mode are set manually in QGC.
+    Node actions:
+    - wait for FCU connection
+    - wait for valid local pose
+    - stream hold setpoints at start pose
+    - upon OFFBOARD: ascend +1 m, return to start height, then hold
     """
 
     def __init__(self):
@@ -40,7 +37,7 @@ class OffboardController(Node):
         )
 
         # Local position of the drone
-        # NOTE: QoS must match MAVROS (often BEST_EFFORT), otherwise you get the RELIABILITY warning.
+        # Note: QoS should match MAVROS (often BEST_EFFORT) to avoid reliability warnings.
         qos_pose = QoSProfile(
             reliability=QoSReliabilityPolicy.BEST_EFFORT,
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -62,13 +59,13 @@ class OffboardController(Node):
         )
 
         # === Service clients ===
-        # Arming service client (not used in this demo – you arm manually)
+        # Arming service client (unused; arming is manual)
         self.arming_client = self.create_client(
             CommandBool,
             '/mavros/cmd/arming'
         )
 
-        # Flight mode change service client (not used in this demo – you switch manually)
+        # Flight mode change service client (unused; mode set manually)
         self.set_mode_client = self.create_client(
             SetMode,
             '/mavros/set_mode'
@@ -77,15 +74,15 @@ class OffboardController(Node):
         # Internal state
         self.current_state: State | None = None
         self.current_pose: PoseStamped | None = None
-        self.ref_pose: PoseStamped | None = None  # start pose (used as reference)
+        self.ref_pose: PoseStamped | None = None  # start pose (reference)
 
         # Mode gate helpers
         self.last_mode = None
         self.last_connected = None
         self.last_state_time = None  # time of last /mavros/state message
 
-        # Simple sequence phase:
-        # None -> wait_offboard -> going_up -> going_down -> done
+        # Simple sequence phases:
+        # None -> wait_offboard -> taking_off -> landing -> done
         self.phase: str | None = None
 
         # Timer for periodic logic (20 Hz)
@@ -96,12 +93,12 @@ class OffboardController(Node):
     # === Callbacks ===
 
     def state_cb(self, msg: State):
-        """Update cached FCU state and heartbeat time."""
+        """Cache FCU state and update heartbeat time."""
         self.current_state = msg
         self.last_state_time = self.get_clock().now()
 
     def pose_cb(self, msg: PoseStamped):
-        """Update cached local pose."""
+        """Cache local pose."""
         self.current_pose = msg
 
     # === Helper: wait for FCU connection ===
@@ -142,19 +139,19 @@ class OffboardController(Node):
 
     def wait_for_pose(self):
         """
-        Placeholder for later use (not needed in this demo, ref_pose is set in update()).
+        Placeholder for later use (not implemented).
         """
         raise NotImplementedError("wait_for_pose() is not implemented yet.")
 
     def arm(self):
         """
-        You arm manually in QGC in this demo.
+        Arming is manual in this demo.
         """
         raise NotImplementedError("arm() is not implemented for this demo.")
 
     def set_mode_offboard(self):
         """
-        You switch to OFFBOARD manually in QGC in this demo.
+        Mode switch to OFFBOARD is manual in this demo.
         """
         raise NotImplementedError("set_mode_offboard() is not implemented for this demo.")
 
@@ -174,7 +171,7 @@ class OffboardController(Node):
         msg.pose.position.y = y
         msg.pose.position.z = z
 
-        # neutral orientation (no yaw control)
+        # Neutral orientation (no yaw control)
         msg.pose.orientation.x = 0.0
         msg.pose.orientation.y = 0.0
         msg.pose.orientation.z = 0.0
@@ -186,25 +183,19 @@ class OffboardController(Node):
 
     def update(self):
         """
-        Called at 20 Hz by the timer.
-
-        Behavior:
-        - monitor connection + mode
-        - set reference pose once
-        - stream neutral setpoint at ref_pose while not in OFFBOARD
-        - when OFFBOARD is detected:
-            * go up +1 m
-            * when reached: go back down to ref height
-            * then keep holding there
+        currently in demo state to be tested irl 
+        planner node will be called instead of this simple up-down demo
+        20 Hz update. Monitors connection and mode, sets reference pose once,
+        streams hold setpoints until OFFBOARD, then ascend +1 m and return to reference height.
         """
 
-        # If we do not have any state yet, do nothing
+        # No state yet; skip.
         if self.current_state is None:
             return
 
         now = self.get_clock().now()
 
-        # 1) Heartbeat check: did we lose MAVROS state messages?
+        # Heartbeat check: lost MAVROS state messages?
         if self.last_state_time is None or (now - self.last_state_time) > Duration(seconds=1.0):
             if self.last_connected is not False:
                 self.get_logger().warn("[WARN] lost MAVROS state heartbeat – treating as disconnected")
@@ -213,33 +204,33 @@ class OffboardController(Node):
 
         state = self.current_state
 
-        # 2) Connection edge logging
+        # Log connection changes
         if self.last_connected is None or self.last_connected != state.connected:
             self.get_logger().info(
                 f"[DEBUG] connected flag changed: {self.last_connected} -> {state.connected}"
             )
             self.last_connected = state.connected
 
-        # If not connected, do not run any control logic
+        # Skip control if not connected
         if not state.connected:
             return
 
-        # 3) Mode edge logging
+        # Log mode changes
         if self.last_mode is None or self.last_mode != state.mode:
             self.get_logger().info(
                 f"[DEBUG] mode changed: {self.last_mode!r} -> {state.mode!r}"
             )
             self.last_mode = state.mode
 
-        # 4) Need a valid pose to do anything meaningful
+        # Require valid pose
         if self.current_pose is None:
             return
 
-        # 5) Initialize reference pose once (start pose on the ground)
+        # Set reference pose once (start pose)
         if self.ref_pose is None:
             self.ref_pose = self.current_pose
             self.get_logger().info("[INFO] reference pose set from current local position")
-            # First phase: wait for OFFBOARD while streaming hold-setpoints
+            # First phase: wait for OFFBOARD while streaming hold setpoints
             self.phase = "wait_offboard"
 
         # Extract current pose
@@ -248,31 +239,30 @@ class OffboardController(Node):
         ref_y = self.ref_pose.pose.position.y
         ref_z = self.ref_pose.pose.position.z
 
-        # Initialize phase if still None (shouldn't happen after ref_pose is set)
+        # Ensure phase initialized
         if self.phase is None:
             self.phase = "wait_offboard"
 
         # === Simple phase machine ===
 
         if self.phase == "wait_offboard":
-            # Always stream "hold at ref height" setpoints,
-            # so PX4 already sees setpoints before OFFBOARD.
+            # Continuously publish hold setpoints so PX4 receives setpoints before OFFBOARD.
             self.publish_position_setpoint(ref_x, ref_y, ref_z)
 
-            # If OFFBOARD is now active, start going up
+            # On OFFBOARD entry, begin ascent
             if state.mode == "OFFBOARD":
                 self.phase = "taking_off"
                 self.get_logger().info("[PHASE] OFFBOARD detected -> starting")
 
         elif self.phase == "following_trajectory":
-            # If we drop out of OFFBOARD, go back to waiting
+            # If OFFBOARD is lost, return to waiting
             if state.mode != "OFFBOARD":
                 self.get_logger().warn("[PHASE] left OFFBOARD while following_trajectory -> back to wait_offboard")
                 self.phase = "wait_offboard"
                 return
 
         elif self.phase == "taking_off":
-            # If we drop out of OFFBOARD, go back to waiting
+            # If OFFBOARD is lost, return to waiting
             if state.mode != "OFFBOARD":
                 self.get_logger().warn("[PHASE] left OFFBOARD while going_up -> back to wait_offboard")
                 self.phase = "wait_offboard"
@@ -281,14 +271,13 @@ class OffboardController(Node):
             target_z = ref_z + 1.0
             self.publish_position_setpoint(ref_x, ref_y, target_z)
 
-            # Check if we are close enough to the target height or target destination (only part proof of concept) 
-            # later will be starting in progress and landing 
+            # Check if target altitude reached (simple tolerance)
             if abs(cur_z - target_z) < 0.1:
                 self.phase = "landing"
                 self.get_logger().info("[PHASE] reached +1 m -> going_down")
 
         elif self.phase == "landing":
-            # If we drop out of OFFBOARD, go back to waiting
+            # If OFFBOARD is lost, return to waiting
             if state.mode != "OFFBOARD":
                 self.get_logger().warn("[PHASE] left OFFBOARD while going_down -> back to wait_offboard")
                 self.phase = "wait_offboard"
@@ -296,13 +285,13 @@ class OffboardController(Node):
 
             self.publish_position_setpoint(ref_x, ref_y, ref_z)
 
-            # Check if we are close to original height again
+            # Check if back at reference height
             if abs(cur_z - ref_z) < 0.1:
                 self.phase = "done"
                 self.get_logger().info("[PHASE] back at reference height -> done")
 
         elif self.phase == "done":
-            # Just keep holding at ref height
+            # Maintain hold at reference height
             self.publish_position_setpoint(ref_x, ref_y, ref_z)
 
 
@@ -311,11 +300,8 @@ def main(args=None):
 
     node = OffboardController()
     node.wait_for_connection()
-    # You:
-    # - arm in QGC
-    # - switch to OFFBOARD in QGC when ready
-    # Node:
-    # - will handle the +1 m up / down sequence automatically
+    # Operator should arm and switch to OFFBOARD in QGC when ready.
+    # Node handles the +1 m up/down sequence automatically.
 
     try:
         rclpy.spin(node)

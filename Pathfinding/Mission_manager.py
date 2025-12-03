@@ -1,0 +1,1 @@
+# interface for managing missions in a pathfinding application
