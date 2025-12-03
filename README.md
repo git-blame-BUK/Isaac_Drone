@@ -32,7 +32,7 @@ Depth Camera → State Estimation (VIO) + Point Cloud → Pathfinding
 7. Isaac publishes into ekf2 and seems to be precise  
 8. Assembly complete
 9. Maiden Flight ready 
-
+10. Maiden Flight succesfull xy stability +/- 5cm
 
 ## Hardware Gallery
 
