@@ -7,7 +7,7 @@
 1. debug.py: checks for all important Datapoints from realsense 
 2. poc.py: checks for realsense devices on host
 3. imu_publisher.py: Systemtime stamped imu publisher for ROS
-4. realsense_publisher.py is another proof of concept wich to visualize correct output in Rviz2
+4. realsense_publisher.py is another proof of concept to visualize correct output in Rviz2
 
 ## Info
 - [about Isaac](https://developer.nvidia.com/isaac)

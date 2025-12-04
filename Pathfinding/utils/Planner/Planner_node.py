@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 from typing import Tuple, Optional, List
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
+from rclpy.qos import qos_profile_sensor_data
 
 import numpy as np
 import rclpy
@@ -56,7 +58,7 @@ class Uav3DTrajectoryPlannerNode(Node):
             PoseStamped,
             "/mavros/local_position/pose",
             self.current_pose_callback,
-            10,
+            qos_profile_sensor_data,
         )
 
         self.goal_subscription = self.create_subscription(
