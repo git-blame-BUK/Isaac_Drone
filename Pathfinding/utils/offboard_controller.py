@@ -283,7 +283,7 @@ class OffboardController(Node):
                 self.phase = "wait_offboard"
                 return
 
-            self.publish_position_setpoint(ref_x, ref_y, ref_z)
+            self.publish_position_setpoint(ref_x, ref_y, ref_z + 0.3)
 
             # Check if back at reference height
             if abs(cur_z - ref_z) < 0.1:
@@ -292,7 +292,7 @@ class OffboardController(Node):
 
         elif self.phase == "done":
             # Maintain hold at reference height
-            self.publish_position_setpoint(ref_x, ref_y, ref_z)
+            self.publish_position_setpoint(ref_x, ref_y, ref_z + 0.3)
 
 
 def main(args=None):
