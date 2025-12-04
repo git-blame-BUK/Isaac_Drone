@@ -288,7 +288,7 @@ class OffboardController(Node):
             # Check if back at reference height
             if abs(cur_z - ref_z) < 0.1:
                 self.phase = "done"
-                self.get_logger().info("[PHASE] back at reference height -> done")
+                self.get_logger().info("[PHASE] at hover height -> switch to landing phase")
 
         elif self.phase == "done":
             # Maintain hold at reference height

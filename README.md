@@ -33,6 +33,7 @@ Depth Camera → State Estimation (VIO) + Point Cloud → Pathfinding
 8. Assembly complete
 9. Maiden Flight ready 
 10. Maiden Flight succesfull xy stability +/- 5cm
+11. Offboard Maiden in demo Mode succesfull 
 
 ## Hardware Gallery
 
