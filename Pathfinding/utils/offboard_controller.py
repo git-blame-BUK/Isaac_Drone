@@ -13,15 +13,15 @@ from geometry_msgs.msg import PoseStamped
 
 class OffboardController(Node):
     """
-    Basic offboard control demo.
-
-    Procedure:
-    - Arming and OFFBOARD mode are set manually in QGC.
-    Node actions:
-    - wait for FCU connection
-    - wait for valid local pose
-    - stream hold setpoints at start pose
-    - upon OFFBOARD: ascend +1 m, return to start height, then hold
+    Node to control a drone in OFFBOARD mode using MAVROS.
+    Subscribes to /mavros/state for FCU state, /mavros
+    /local_position/pose for current local position, and /uav/trajectory for planned path.
+    Publishes position setpoints to /mavros/setpoint_position/local.
+    Implements a simple state machine to manage takeoff, trajectory following, and holding.
+    20 Hz update rate.
+    TODO : implement landing method in "done" phase.
+    TODO : implement safety checks for altitude and position limits.
+    TODO : implement smoother trajectory following (interpolation, velocity control).
     """
 
     def __init__(self):
