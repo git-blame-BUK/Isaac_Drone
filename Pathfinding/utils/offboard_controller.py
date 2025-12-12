@@ -50,6 +50,14 @@ class OffboardController(Node):
             qos_pose,
         )
 
+        # Planned path from the planner
+        self.traj_sub = self.create_subscription(
+            Path,
+            '/uav/trajectory',
+            self.trajectory_cb,
+            10
+        )
+
         # === Publishers ===
         # Offboard position setpoints (ENU frame from MAVROS)
         self.setpoint_pub = self.create_publisher(
@@ -81,8 +89,21 @@ class OffboardController(Node):
         self.last_connected = None
         self.last_state_time = None  # time of last /mavros/state message
 
+        # Trajectory buffer
+        self.traj_points: list[tuple[float, float, float]] = []
+        self.trja_frame_id: str | None = None
+        self.traj_index: int = 0 # to track progress along trajectory
+        self.traj_sequence: int = 0 # to track new trajectories
+
+        #Holding Point -> last commanded setpoint 
+        self.hold_point: tuple[float, float, float] | None = None
+
+        # Parameters
+        self.declare_parameter('takeoff_altitude', 0.5)  # 30 cm hovering alt
+        self.declare_parameter('goal_tolerance', 0.2)  # tolerance when goal reached
+        self.declare_parameter('min_setpoint_rate', 10.0)  # Hz
         # Simple sequence phases:
-        # None -> wait_offboard -> taking_off -> landing -> done
+        # None -> wait_offboard -> taking_off ->holding -> following_trajecory -> holding
         self.phase: str | None = None
 
         # Timer for periodic logic (20 Hz)
@@ -100,6 +121,22 @@ class OffboardController(Node):
     def pose_cb(self, msg: PoseStamped):
         """Cache local pose."""
         self.current_pose = msg
+
+    def trajectory_cb(self, msg: Path):
+        # cache new trajectory points
+        if not msg.poses:
+            self.get_logger().warn("[WARN] received empty trajectory")
+            return
+        pts = []
+        for pose_stamped in msg.poses:
+            p = pose_stamped.pose.position
+            pts.append((float(p.x), float(p.y), float(p.z)))
+
+        self.traj_points = pts
+        self.trja_frame_id = msg.header.frame_id or None
+        self.traj_index = 0
+        self.traj_sequence += 1
+        self.get_logger().info(f"Received /uav/trajectory with {len(self.traj_points)} points (seq={self.traj_seq}).")
 
     # === Helper: wait for FCU connection ===
 
@@ -137,23 +174,11 @@ class OffboardController(Node):
 
     # === Not used in this demo, but kept for later ===
 
-    def wait_for_pose(self):
-        """
-        Placeholder for later use (not implemented).
-        """
-        raise NotImplementedError("wait_for_pose() is not implemented yet.")
-
     def arm(self):
         """
         Arming is manual in this demo.
         """
         raise NotImplementedError("arm() is not implemented for this demo.")
-
-    def set_mode_offboard(self):
-        """
-        Mode switch to OFFBOARD is manual in this demo.
-        """
-        raise NotImplementedError("set_mode_offboard() is not implemented for this demo.")
 
     # === Helper: publish one position setpoint ===
 
@@ -178,6 +203,17 @@ class OffboardController(Node):
         msg.pose.orientation.w = 1.0
 
         self.setpoint_pub.publish(msg)
+
+        if update_hold:
+            self.hold_point = (x, y, z)
+
+    # Math helper: 3D distance
+    @staticmethod
+    def dist3(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
+        dx = a[0] - b[0]
+        dy = a[1] - b[1]
+        dz = a[2] - b[2]
+        return math.sqrt(dx*dx + dy*dy + dz*dz)
 
     # === Main periodic update loop ===
 
@@ -225,19 +261,27 @@ class OffboardController(Node):
         # Require valid pose
         if self.current_pose is None:
             return
+        # Extract reference pose = Home point
+        ref_x = self.ref_pose.pose.position.x
+        ref_y = self.ref_pose.pose.position.y
+        ref_z = self.ref_pose.pose.position.z
+
+        # Extract current pose
+        cur_x = self.current_pose.pose.position.x
+        cur_y = self.current_pose.pose.position.y
+        cur_z = self.current_pose.pose.position.z
+        cur = (cur_x, cur_y, cur_z)
 
         # Set reference pose once (start pose)
         if self.ref_pose is None:
             self.ref_pose = self.current_pose
             self.get_logger().info("[INFO] reference pose set from current local position")
+            self.hold_point = cur
             # First phase: wait for OFFBOARD while streaming hold setpoints
             self.phase = "wait_offboard"
 
-        # Extract current pose
-        cur_z = self.current_pose.pose.position.z
-        ref_x = self.ref_pose.pose.position.x
-        ref_y = self.ref_pose.pose.position.y
-        ref_z = self.ref_pose.pose.position.z
+        takeoff_height = float(self.get_parameter('takeoff_altitude').value)
+        goal_tol = float(self.get_parameter('goal_tolerance').value)
 
         # Ensure phase initialized
         if self.phase is None:
@@ -247,19 +291,13 @@ class OffboardController(Node):
 
         if self.phase == "wait_offboard":
             # Continuously publish hold setpoints so PX4 receives setpoints before OFFBOARD.
-            self.publish_position_setpoint(ref_x, ref_y, ref_z)
+            hx, hy, hz = self.hold_point
+            self.publish_position_setpoint(*self.hold_point, update_hold=False)
 
             # On OFFBOARD entry, begin ascent
             if state.mode == "OFFBOARD":
                 self.phase = "taking_off"
                 self.get_logger().info("[PHASE] OFFBOARD detected -> starting")
-
-        elif self.phase == "following_trajectory":
-            # If OFFBOARD is lost, return to waiting
-            if state.mode != "OFFBOARD":
-                self.get_logger().warn("[PHASE] left OFFBOARD while following_trajectory -> back to wait_offboard")
-                self.phase = "wait_offboard"
-                return
 
         elif self.phase == "taking_off":
             # If OFFBOARD is lost, return to waiting
@@ -268,31 +306,69 @@ class OffboardController(Node):
                 self.phase = "wait_offboard"
                 return
 
-            target_z = ref_z + 1.0
-            self.publish_position_setpoint(ref_x, ref_y, target_z)
+            base_X, base_Y, base_Z = self.hold_point
+            target_hover = (base_X, base_Y, base_Z + takeoff_height)
+            self.publish_position_setpoint(*target_hover, update_hold=True)
 
             # Check if target altitude reached (simple tolerance)
-            if abs(cur_z - target_z) < 0.1:
-                self.phase = "landing"
-                self.get_logger().info("[PHASE] reached +1 m -> going_down")
+            if abs(cur[2] - target_hover[2]) < max(0.1, goal_tol):
+                self.phase = "following_trajectory"
+                self.get_logger().info("[PHASE] takeoff complete -> following trajectory phase")
+            else:
+                self.phase = "holding"
+                self.get_logger().info("[PHASE] at hover height -> switch to holding phase")
 
-        elif self.phase == "landing":
+        elif self.phase == "holding":
             # If OFFBOARD is lost, return to waiting
             if state.mode != "OFFBOARD":
-                self.get_logger().warn("[PHASE] left OFFBOARD while going_down -> back to wait_offboard")
+                self.get_logger().warn("[PHASE] left OFFBOARD while holding -> back to wait_offboard")
                 self.phase = "wait_offboard"
                 return
 
-            self.publish_position_setpoint(ref_x, ref_y, ref_z + 0.3)
+            hx, hy, hz = self.hold_point
+            self.publish_position_setpoint(hx, hy, hz, update_hold=False)
+            if self.traj_points:
+                self.phase = "following_trajectory"
+                self.get_logger().info("[PHASE] trajectory available -> switch to following_trajectory phase")
 
-            # Check if back at reference height
-            if abs(cur_z - ref_z) < 0.1:
-                self.phase = "done"
-                self.get_logger().info("[PHASE] at hover height -> switch to landing phase")
+        elif self.phase == "following_trajectory":
+            # If OFFBOARD is lost, return to waiting
+            if state.mode != "OFFBOARD":
+                self.get_logger().warn("[PHASE] left OFFBOARD while following_trajectory -> back to wait_offboard")
+                self.phase = "wait_offboard"
+                return
+            # get trajectory from planner node
+            if not self.traj_points:
+                self.get_logger().warn("[PHASE] no trajectory points available -> switch to holding phase")
+                self.phase = "holding"
+                return
+            if self.traj_index >= len(self.traj_points):
+                self.get_logger().info("[PHASE] reached end of trajectory -> switch to landing phase")
+                self.phase = "holding"
+                return
+            # target set 
+            target_point = self.traj_points[self.traj_index]
+            self.publish_position_setpoint(*target_point, update_hold=True)
+            # check if reached target point
+            d = self.dist3(cur, target_point)
+            if d < goal_tol:
+                self.traj_index += 1
+                if self.traj_index < len(self.traj_points):
+                    self.get_logger().info(f"[PHASE] reached trajectory point {self.traj_index} -> moving to next point")
+                else:
+                    self.get_logger().info("[PHASE] reached final trajectory point -> switch to holding phase")
 
         elif self.phase == "done":
-            # Maintain hold at reference height
-            self.publish_position_setpoint(ref_x, ref_y, ref_z + 0.3)
+            # TODO impplement landing Method 
+            if state.mode != "OFFBOARD":
+                self.get_logger().warn("[PHASE] left OFFBOARD while done -> back to wait_offboard")
+                self.phase = "wait_offboard"
+                return
+            # Hold till landing command
+            hx, hy, hz = self.hold_point
+            self.publish_position_setpoint(hx, hy, hz, update_hold=False)
+            self.get_logger().info("[PHASE] in done phase, holding position")
+
 
 
 def main(args=None):
