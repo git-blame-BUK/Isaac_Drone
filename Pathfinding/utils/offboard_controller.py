@@ -312,7 +312,7 @@ class OffboardController(Node):
 
             base_X, base_Y, base_Z = self.hold_point
             target_hover = (base_X, base_Y, base_Z + takeoff_height)
-            self.publish_position_setpoint(*target_hover, update_hold=True)
+            self.publish_position_setpoint(*target_hover, update_hold=False)
 
             # Check if target altitude reached (simple tolerance)
             reached = abs(cur[2] - target_hover[2]) < max(0.1, goal_tol)
