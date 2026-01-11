@@ -86,6 +86,8 @@ class OffboardController(Node):
         self.current_state: State | None = None
         self.current_pose: PoseStamped | None = None
         self.ref_pose: PoseStamped | None = None  # start pose (reference)
+        self.yaw_cmd = None
+
 
         # Mode gate helpers
         self.last_mode = None
@@ -124,6 +126,10 @@ class OffboardController(Node):
     def pose_cb(self, msg: PoseStamped):
         """Cache local pose."""
         self.current_pose = msg
+        # yaw initialization
+        if self.yaw_cmd is None:
+            self.yaw_cmd = yaw_from_quat(msg.pose.orientation)
+            self.get_logger().info(f"[INFO] yaw_cmd initialized to {self.yaw_cmd:.3f} rad")
 
     def trajectory_cb(self, msg: Path):
         # cache new trajectory points
@@ -183,6 +189,17 @@ class OffboardController(Node):
         """
         raise NotImplementedError("arm() is not implemented for this demo.")
 
+    #  
+    def yaw_from_quat(q):
+        # q has fields x,y,z,w
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        return math.atan2(siny_cosp, cosy_cosp)
+
+    def quat_from_yaw(yaw):
+         # roll=pitch=0, yaw about Z
+        return (0.0, 0.0, math.sin(yaw * 0.5), math.cos(yaw * 0.5))  # x,y,z,w
+
     # === Helper: publish one position setpoint ===
 
     def publish_position_setpoint(self, x: float, y: float, z: float, update_hold: bool = True):
@@ -199,11 +216,11 @@ class OffboardController(Node):
         msg.pose.position.y = y
         msg.pose.position.z = z
 
-        # Neutral orientation (no yaw control)
-        msg.pose.orientation.x = 0.0
-        msg.pose.orientation.y = 0.0
-        msg.pose.orientation.z = 0.0
-        msg.pose.orientation.w = 1.0
+        qx, qy, qz, qw = quat_from_yaw(self.yaw_cmd if self.yaw_cmd is not None else 0.0)
+        msg.pose.orientation.x = qx
+        msg.pose.orientation.y = qy
+        msg.pose.orientation.z = qz
+        msg.pose.orientation.w = qw
 
         self.setpoint_pub.publish(msg)
 
@@ -217,6 +234,21 @@ class OffboardController(Node):
         dy = a[1] - b[1]
         dz = a[2] - b[2]
         return math.sqrt(dx*dx + dy*dy + dz*dz)
+
+    # Yaw/quaternion conversions  
+    def yaw_from_quat(q):
+        # q has fields x,y,z,w
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        return math.atan2(siny_cosp, cosy_cosp)
+
+    def quat_from_yaw(yaw):
+         # roll=pitch=0, yaw about Z
+        return (0.0, 0.0, math.sin(yaw * 0.5), math.cos(yaw * 0.5))  # x,y,z,w
+
+
+
+
 
     # === Main periodic update loop ===
 
