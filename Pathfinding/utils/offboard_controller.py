@@ -317,6 +317,7 @@ class OffboardController(Node):
             # Check if target altitude reached (simple tolerance)
             reached = abs(cur[2] - target_hover[2]) < max(0.1, goal_tol)
             if reached:
+                self.hold_point = target_hover
                 self.phase = "holding"
                 self.get_logger().info("[PHASE] at hover height -> switch to holding phase")
             else:
