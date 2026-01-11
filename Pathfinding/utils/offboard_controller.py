@@ -6,6 +6,9 @@ from rclpy.node import Node
 
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 
+import math
+from nav_msgs.msg import Path
+
 from mavros_msgs.msg import State
 from mavros_msgs.srv import CommandBool, SetMode
 from geometry_msgs.msg import PoseStamped
@@ -182,7 +185,7 @@ class OffboardController(Node):
 
     # === Helper: publish one position setpoint ===
 
-    def publish_position_setpoint(self, x: float, y: float, z: float):
+    def publish_position_setpoint(self, x: float, y: float, z: float, update_hold: bool = True):
         """Publish a single position setpoint to MAVROS."""
         msg = PoseStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -257,14 +260,10 @@ class OffboardController(Node):
                 f"[DEBUG] mode changed: {self.last_mode!r} -> {state.mode!r}"
             )
             self.last_mode = state.mode
-
+        
         # Require valid pose
         if self.current_pose is None:
             return
-        # Extract reference pose = Home point
-        ref_x = self.ref_pose.pose.position.x
-        ref_y = self.ref_pose.pose.position.y
-        ref_z = self.ref_pose.pose.position.z
 
         # Extract current pose
         cur_x = self.current_pose.pose.position.x
@@ -279,6 +278,11 @@ class OffboardController(Node):
             self.hold_point = cur
             # First phase: wait for OFFBOARD while streaming hold setpoints
             self.phase = "wait_offboard"
+
+        # Extract reference pose = Home point
+        ref_x = self.ref_pose.pose.position.x
+        ref_y = self.ref_pose.pose.position.y
+        ref_z = self.ref_pose.pose.position.z
 
         takeoff_height = float(self.get_parameter('takeoff_altitude').value)
         goal_tol = float(self.get_parameter('goal_tolerance').value)
@@ -311,12 +315,12 @@ class OffboardController(Node):
             self.publish_position_setpoint(*target_hover, update_hold=True)
 
             # Check if target altitude reached (simple tolerance)
-            if abs(cur[2] - target_hover[2]) < max(0.1, goal_tol):
-                self.phase = "following_trajectory"
-                self.get_logger().info("[PHASE] takeoff complete -> following trajectory phase")
-            else:
+            reached = abs(cur[2] - target_hover[2]) < max(0.1, goal_tol)
+            if reached:
                 self.phase = "holding"
                 self.get_logger().info("[PHASE] at hover height -> switch to holding phase")
+            else:
+                self.phase = "taking_off"
 
         elif self.phase == "holding":
             # If OFFBOARD is lost, return to waiting
