@@ -189,7 +189,7 @@ class OffboardController(Node):
         """
         raise NotImplementedError("arm() is not implemented for this demo.")
 
-    #  
+    # === Math helpers: yaw/quaternion conversions ===
     def yaw_from_quat(q):
         # q has fields x,y,z,w
         siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
@@ -234,18 +234,6 @@ class OffboardController(Node):
         dy = a[1] - b[1]
         dz = a[2] - b[2]
         return math.sqrt(dx*dx + dy*dy + dz*dz)
-
-    # Yaw/quaternion conversions  
-    def yaw_from_quat(q):
-        # q has fields x,y,z,w
-        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
-        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-        return math.atan2(siny_cosp, cosy_cosp)
-
-    def quat_from_yaw(yaw):
-         # roll=pitch=0, yaw about Z
-        return (0.0, 0.0, math.sin(yaw * 0.5), math.cos(yaw * 0.5))  # x,y,z,w
-
 
 
 
