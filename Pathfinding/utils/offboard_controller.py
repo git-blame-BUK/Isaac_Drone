@@ -145,7 +145,7 @@ class OffboardController(Node):
         self.trja_frame_id = msg.header.frame_id or None
         self.traj_index = 0
         self.traj_sequence += 1
-        self.get_logger().info(f"Received /uav/trajectory with {len(self.traj_points)} points (seq={self.traj_seq}).")
+        self.get_logger().info(f"Received /uav/trajectory with {len(self.traj_points)} points (seq={self.traj_sequence}).")
 
     # === Helper: wait for FCU connection ===
 

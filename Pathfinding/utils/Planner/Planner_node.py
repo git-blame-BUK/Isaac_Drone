@@ -202,102 +202,128 @@ class Uav3DTrajectoryPlannerNode(Node):
     # ------------------------------------------------------------------
     # ESDF service interaction with nvblox
     # ------------------------------------------------------------------
-
-    def query_esdf_for_aabb(
-        self,
-        aabb_min: Tuple[float, float, float],
-        aabb_max: Tuple[float, float, float],
-        voxel_size: float,
-    ) -> Optional[Tuple[np.ndarray, VoxelGridInfo]]:
+    def query_esdf_for_aabb(self, aabb_min, aabb_max, voxel_size=None, frame_id="map"):
         """
-        Call the nvblox ESDF service /nvblox_node/get_esdf_and_gradient
-        for a given axis-aligned bounding box (AABB).
+        Query nvblox ESDF+gradients within an AABB.
 
-        Returns:
-            (esdf_grid, voxel_grid_info) if successful, else None.
+        Parameters
+        ----------
+        aabb_min : array-like (x,y,z)
+        aabb_max : array-like (x,y,z)
+        voxel_size : unused (nvblox defines voxel size internally, returned in response.voxel_size_m)
+        frame_id : str, frame for AABB (must match nvblox frame)
 
-        IMPORTANT:
-          You MUST check the exact fields of EsdfAndGradients.srv in
-          your workspace with:
-
-            ros2 interface show nvblox_msgs/srv/EsdfAndGradients
-
-          and adapt the field names below accordingly.
+        Returns
+        -------
+        (esdf, voxel_grid_info) or None
+        esdf: np.ndarray shape (z,y,x) float32
+        voxel_grid_info: VoxelGridInfo (resolution, origin, sizes)
         """
+        try:
+            from nvblox_msgs.srv import EsdfAndGradients
+        except Exception as e:
+            self.get_logger().error(f"Failed to import nvblox_msgs.srv.EsdfAndGradients: {e}")
+            return None
+
         if not self.esdf_service_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().warn("ESDF service not available.")
+            self.get_logger().warn("ESDF service not available yet: /nvblox_node/get_esdf_and_gradient")
             return None
 
-        request = EsdfAndGradients.Request()
+        # ---- Build request (matches `ros2 interface show nvblox_msgs/srv/EsdfAndGradients`) ----
+        req = EsdfAndGradients.Request()
+        req.update_esdf = True
+        req.visualize_esdf = False
+        req.use_aabb = True
+        req.frame_id = str(frame_id)
 
-        # TODO: adapt these fields to the actual service definition!
-        try:
-            # Typical pattern (verify with `ros2 interface show`):
-            # request.aabb_min.x/y/z, request.aabb_max.x/y/z, request.voxel_size, request.frame_id, etc.
+        req.aabb_min_m.x = float(aabb_min[0])
+        req.aabb_min_m.y = float(aabb_min[1])
+        req.aabb_min_m.z = float(aabb_min[2])
 
-            request.aabb_min.x = float(aabb_min[0])
-            request.aabb_min.y = float(aabb_min[1])
-            request.aabb_min.z = float(aabb_min[2])
+        size_x = float(aabb_max[0] - aabb_min[0])
+        size_y = float(aabb_max[1] - aabb_min[1])
+        size_z = float(aabb_max[2] - aabb_min[2])
 
-            request.aabb_max.x = float(aabb_max[0])
-            request.aabb_max.y = float(aabb_max[1])
-            request.aabb_max.z = float(aabb_max[2])
-
-            request.voxel_size = float(voxel_size)
-            # If present in your service:
-            # request.frame_id = "map"
-        except AttributeError:
+        # Guard against negative/zero boxes (can happen if min/max swapped)
+        if size_x <= 0.0 or size_y <= 0.0 or size_z <= 0.0:
             self.get_logger().error(
-                "Please adapt request field names to match EsdfAndGradients.srv "
-                "(e.g. aabb_min, aabb_max, voxel_size, frame_id, ...)."
+                f"Invalid AABB: min={aabb_min}, max={aabb_max} -> size=({size_x},{size_y},{size_z}). "
+                "Ensure aabb_max > aabb_min in all axes."
             )
             return None
 
-        future = self.esdf_service_client.call_async(request)
+        req.aabb_size_m.x = size_x
+        req.aabb_size_m.y = size_y
+        req.aabb_size_m.z = size_z
+
+        # ---- Call service ----
+        future = self.esdf_service_client.call_async(req)
         rclpy.spin_until_future_complete(self, future)
+        res = future.result()
 
-        if future.result() is None:
-            self.get_logger().warn("ESDF service call failed.")
+        if res is None:
+            self.get_logger().error("ESDF service call returned None (future.result() is None).")
+            return None
+        if not getattr(res, "success", False):
+            self.get_logger().warn("ESDF service call failed: response.success == False")
             return None
 
-        response = future.result()
+        # ---- Parse response ----
+        origin_x = float(res.origin_m.x)
+        origin_y = float(res.origin_m.y)
+        origin_z = float(res.origin_m.z)
+        voxel = float(res.voxel_size_m)
 
-        # === Convert response to numpy ESDF grid + VoxelGridInfo ===
-        try:
-            # Typical pattern (verify with `ros2 interface show`):
-            # response.dim_x, response.dim_y, response.dim_z
-            # response.esdf (flattened float array)
-            # response.origin.x/y/z
+        msg = res.esdf_and_gradients
+        data = np.asarray(msg.data, dtype=np.float32)
 
-            dim_x = response.dim_x
-            dim_y = response.dim_y
-            dim_z = response.dim_z
+        dims = [int(d.size) for d in msg.layout.dim]
+        if len(dims) == 3:
+            # (z, y, x)
+            z, y, x = dims
+            channels = 1
+        elif len(dims) == 4:
+            # (z, y, x, channels)
+            z, y, x, channels = dims
+        else:
+            self.get_logger().error(f"Unexpected esdf_and_gradients layout dims: {dims}")
+            return None
 
-            esdf_flat = np.array(response.esdf, dtype=np.float32)
-            esdf_grid = esdf_flat.reshape(dim_z, dim_y, dim_x)
-
-            origin_x = response.origin.x
-            origin_y = response.origin.y
-            origin_z = response.origin.z
-
-        except AttributeError:
-            self.get_logger().error(
-                "Please adapt response field names (dim_x/y/z, esdf, origin) "
-                "to match EsdfAndGradients.srv."
+        expected_len = z * y * x * channels
+        if data.size != expected_len:
+            self.get_logger().warn(
+                f"MultiArray data length mismatch: got {data.size}, expected {expected_len} "
+                f"for dims={dims}. Trying best-effort reshape..."
             )
-            return None
+            # best-effort: infer from data length if possible
+            if channels > 0 and data.size == z * y * x:
+                channels = 1
+            else:
+                return None
+
+        if channels == 1:
+            esdf = data.reshape((z, y, x))
+        else:
+            esdf_grad = data.reshape((z, y, x, channels))
+            esdf = esdf_grad[:, :, :, 0]  # channel 0 = ESDF
+
+        # optional debug
+        self.get_logger().info(
+            f"ESDF received: dims={dims}, voxel={voxel:.4f}m, origin=({origin_x:.2f},{origin_y:.2f},{origin_z:.2f})"
+        )
 
         voxel_grid_info = VoxelGridInfo(
-            resolution=voxel_size,
+            resolution=voxel,
             origin_x=origin_x,
             origin_y=origin_y,
             origin_z=origin_z,
-            size_x=dim_x,
-            size_y=dim_y,
-            size_z=dim_z,
+            size_x=x,
+            size_y=y,
+            size_z=z,
         )
 
-        return esdf_grid, voxel_grid_info
+        return esdf, voxel_grid_info
+
 
     # ------------------------------------------------------------------
     # Helper to build nav_msgs/Path
