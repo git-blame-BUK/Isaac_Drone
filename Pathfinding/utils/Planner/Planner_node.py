@@ -7,6 +7,9 @@ from __future__ import annotations
 from typing import Tuple, Optional, List
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from rclpy.qos import qos_profile_sensor_data
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+
 
 import numpy as np
 import rclpy
@@ -49,6 +52,10 @@ class Uav3DTrajectoryPlannerNode(Node):
     def __init__(self):
         super().__init__("uav_3d_trajectory_planner")
 
+        # --- Callback group for service client (prevents deadlock) ---
+        # Service responses can be processed concurrently with other callbacks.
+        self.esdf_cb_group = ReentrantCallbackGroup()
+
         # --- Subscriptions: current pose & goal pose ---
 
         self.current_pose: Optional[PoseStamped] = None
@@ -81,6 +88,7 @@ class Uav3DTrajectoryPlannerNode(Node):
         self.esdf_service_client = self.create_client(
             EsdfAndGradients,
             "/nvblox_node/get_esdf_and_gradient",
+            callback_group=self.esdf_cb_group,
         )
 
         # --- Parameters for planning ---
@@ -91,6 +99,8 @@ class Uav3DTrajectoryPlannerNode(Node):
 
         # Resolution of ESDF grid we request from nvblox (meters per voxel)
         self.declare_parameter("voxel_size", 0.2)
+        #timeout for esdf service call
+        self.declare_parameter("esdf_timeout_sec", 2.0)
 
         # ESDF -> cost conversion
         self.declare_parameter("safety_radius", 0.4)           # min allowed distance to obstacles
@@ -256,9 +266,16 @@ class Uav3DTrajectoryPlannerNode(Node):
         req.aabb_size_m.y = size_y
         req.aabb_size_m.z = size_z
 
-        # ---- Call service ----
+        # ---- Call service with timeout (prevents silent hanging) ----
+        timeout_sec = float(self.get_parameter("esdf_timeout_sec").value)
+
         future = self.esdf_service_client.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
+        ok = rclpy.spin_until_future_complete(self, future, timeout_sec=timeout_sec)
+
+        if not future.done():
+            self.get_logger().error(f"ESDF service timed out after {timeout_sec:.2f}s (no response).")
+            return None
+
         res = future.result()
 
         if res is None:
@@ -357,10 +374,15 @@ class Uav3DTrajectoryPlannerNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = Uav3DTrajectoryPlannerNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
 
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(node)
+    try:
+        executor.spin()
+    finally:
+        executor.shutdown()
+        node.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == "__main__":
     main()
