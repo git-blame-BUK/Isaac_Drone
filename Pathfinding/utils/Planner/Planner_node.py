@@ -202,7 +202,7 @@ class Uav3DTrajectoryPlannerNode(Node):
     # ------------------------------------------------------------------
     # ESDF service interaction with nvblox
     # ------------------------------------------------------------------
-    def query_esdf_for_aabb(self, aabb_min, aabb_max, voxel_size=None, frame_id="map"):
+    def query_esdf_for_aabb(self, aabb_min, aabb_max, voxel_size=None, frame_id="odom"):
         """
         Query nvblox ESDF+gradients within an AABB.
 
