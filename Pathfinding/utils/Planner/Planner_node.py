@@ -178,6 +178,15 @@ class Uav3DTrajectoryPlannerNode(Node):
 
         esdf_grid, voxel_grid_info = esdf_query_result  # esdf_grid: shape (Z, Y, X)
 
+        # --- DEBUG 1: ESDF sanity ---
+        self.get_logger().info(f"Grid sizes: x={voxel_grid_info.size_x}, y={voxel_grid_info.size_y}, z={voxel_grid_info.size_z}")
+        self.get_logger().info(
+            f"ESDF stats: min={float(np.min(esdf_grid)):.3f}, max={float(np.max(esdf_grid)):.3f}, "
+            f"mean={float(np.mean(esdf_grid)):.3f}"
+        )
+        unknown = int(np.sum(esdf_grid <= -999.0))
+        self.get_logger().info(f"Unknown(-1000) cells: {unknown} / {esdf_grid.size}")
+
         # 3) Convert ESDF to cost grid (safe distance + inflation costs)
         cost_grid = esdf_to_cost_grid(
             esdf_grid,
