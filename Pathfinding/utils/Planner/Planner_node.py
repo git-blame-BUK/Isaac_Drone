@@ -86,8 +86,8 @@ class Uav3DTrajectoryPlannerNode(Node):
         # --- Parameters for planning ---
 
         # How far around start & goal we ask nvblox for ESDF data (meters)
-        self.declare_parameter("bbox_xy_margin", 10.0)         # horizontal margin
-        self.declare_parameter("bbox_z_margin", 5.0)           # vertical margin
+        self.declare_parameter("bbox_xy_margin", 2.0)         # horizontal margin
+        self.declare_parameter("bbox_z_margin", 1.5)           # vertical margin
 
         # Resolution of ESDF grid we request from nvblox (meters per voxel)
         self.declare_parameter("voxel_size", 0.2)
