@@ -200,7 +200,7 @@ class OffboardController(Node):
         if self.current_pose is not None:
             msg.header.frame_id = self.current_pose.header.frame_id
         else:
-            msg.header.frame_id = "map"
+            msg.header.frame_id = "odom"
 
         msg.pose.position.x = x
         msg.pose.position.y = y
@@ -242,10 +242,9 @@ class OffboardController(Node):
 
     def update(self):
         """
-        currently in demo state to be tested irl 
-        planner node will be called instead of this simple up-down demo
-        20 Hz update. Monitors connection and mode, sets reference pose once,
-        streams hold setpoints until OFFBOARD, then ascend +1 m and return to reference height.
+        Phases: wait_offboard, taking_off, holding, following_trajectory
+        Monitoring connection and Flightmode while setting dynamic Hold Points
+        Following trajectory by iterating trough Planners List of Trajectorys while checking goal distance
         """
 
         # No state yet; skip.
@@ -402,7 +401,6 @@ def main(args=None):
     node = OffboardController()
     node.wait_for_connection()
     # Operator should arm and switch to OFFBOARD in QGC when ready.
-    # Node handles the +1 m up/down sequence automatically.
 
     try:
         rclpy.spin(node)

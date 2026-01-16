@@ -4,7 +4,7 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
-
+import time
 from geometry_msgs.msg import PoseStamped
 
 
@@ -28,10 +28,10 @@ class MissionManager(Node):
         self.goal_pub = self.create_publisher(PoseStamped, "/uav/goal_pose", qos_latched)
 
         # parameters (set via CLI or defaults)
-        self.declare_parameter("frame_id", "map")
-        self.declare_parameter("x", 2.0)
-        self.declare_parameter("y", 0.0)
-        self.declare_parameter("z", 0.8)
+        self.declare_parameter("frame_id", "odom")
+        self.declare_parameter("x", input("enter goal x e.g 1.0 for 1m forward  : ") or 0.0)
+        self.declare_parameter("y", input("enter goal y e.g 1.0 for 1m right  : ") or 0.0)
+        self.declare_parameter("z", input("enter goal z e.g 1.0 for 1m up     : ") or 0.5)
 
         # publish a few times so it’s super robust
         self._count = 0
@@ -54,14 +54,23 @@ class MissionManager(Node):
         msg.pose.orientation.w = 1.0  # no yaw command here
 
         self.goal_pub.publish(msg)
-        self._count += 1
-
-        if self._count == 1:
-            self.get_logger().info(f"Goal: frame={frame_id} pos=({x:.2f},{y:.2f},{z:.2f})")
-
+        
         # publish 10 times (~2 seconds) then exit
-        if self._count >= 10:
-            self.get_logger().info("Goal published. Shutting down mission manager.")
+        try:
+            if self._count < 10:
+                self._count += 1
+            self.goal_pub.publish(msg)
+            
+            i = input ("Goal published want to publish again ? y/n : ")
+            self.get_logger().info(f"Published goal #{self._count}: ({x}, {y}, {z}) in frame '{frame_id}'")
+            if i == 'y':
+                self._count = 0
+            elif i == 'n' or self._count >= 10:
+                self.get_logger().info("Goal publishing complete. Shutting down MissionManager.")
+                rclpy.shutdown()
+        except: 
+            # Ctl+C during sleep will raise exception 
+            self.get_logger().info("something went wrong while publishing goal")
             rclpy.shutdown()
 
 
