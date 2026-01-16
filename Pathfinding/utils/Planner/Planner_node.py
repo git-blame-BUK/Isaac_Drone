@@ -103,7 +103,7 @@ class Uav3DTrajectoryPlannerNode(Node):
         self.declare_parameter("esdf_timeout_sec", 2.0)
 
         # ESDF -> cost conversion
-        self.declare_parameter("safety_radius", 0.4)           # min allowed distance to obstacles
+        self.declare_parameter("safety_radius", 0.2)           # min allowed distance to obstacles
         self.declare_parameter("inflation_radius", 2.0)        # where obstacle influence fades out
         self.declare_parameter("free_cost", 1.0)               # cost in free space
         self.declare_parameter("max_cost", 5.0)                # cost near safety boundary
