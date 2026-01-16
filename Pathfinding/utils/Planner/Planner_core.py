@@ -83,28 +83,19 @@ def esdf_to_cost_grid(
     inflation_radius: float,
     free_cost: float = 1.0,
     max_cost: float = 5.0,
+    unknown_threshold: float = -999.0,
+    unknown_is_free: bool = True,
+    unknown_cost: float = 2.0,
 ) -> np.ndarray:
     """
-    Convert a 3D ESDF grid (distance to nearest obstacle in meters)
-    into a 3D cost grid.
+    ESDF (Z,Y,X) -> cost grid (Z,Y,X)
 
-    Rules:
-      - d < safety_radius:
-          forbidden (cost = np.inf)
-      - safety_radius <= d < inflation_radius:
-          allowed, but higher cost near obstacles
-      - d >= inflation_radius:
-          free space (cost = free_cost)
+    unknown_threshold:
+      Values <= unknown_threshold are treated as "unknown/unobserved" (e.g. -1000 from nvblox)
 
-    Args:
-        esdf_grid: 3D numpy array (Z, Y, X) with distances in meters.
-        safety_radius: minimum allowed distance to obstacles [m].
-        inflation_radius: radius where inflation fades out [m].
-        free_cost: base cost in free space.
-        max_cost: cost right at the safety boundary.
-
-    Returns:
-        cost_grid: 3D numpy array (Z, Y, X) with float32 costs.
+    unknown_is_free:
+      True  -> unknown is traversable (cost=unknown_cost)
+      False -> unknown is blocked (cost=np.inf)
     """
     if inflation_radius <= safety_radius:
         raise ValueError("inflation_radius must be > safety_radius")
@@ -112,24 +103,27 @@ def esdf_to_cost_grid(
     dist = esdf_grid.astype(np.float32)
     cost_grid = np.full_like(dist, free_cost, dtype=np.float32)
 
-    # 1) Forbidden region: too close to obstacles
-    forbidden_mask = dist < safety_radius
+    # --- 0) unknown mask ---
+    unknown_mask = dist <= unknown_threshold
+    if unknown_is_free:
+        cost_grid[unknown_mask] = float(unknown_cost)
+    else:
+        cost_grid[unknown_mask] = np.inf
+
+    # --- 1) Forbidden region (ONLY where distance is known) ---
+    known_mask = ~unknown_mask
+    forbidden_mask = (dist < safety_radius) & known_mask
     cost_grid[forbidden_mask] = np.inf
 
-    # 2) Corridor region: between safety_radius and inflation_radius
-    corridor_mask = (dist >= safety_radius) & (dist < inflation_radius)
+    # --- 2) Inflation corridor (ONLY where distance is known) ---
+    corridor_mask = (dist >= safety_radius) & (dist < inflation_radius) & known_mask
     if np.any(corridor_mask):
         d_corr = dist[corridor_mask]
-        # ratio in [0, 1]:
-        #   d = safety_radius      -> ratio = 0
-        #   d = inflation_radius   -> ratio = 1
         ratio = (d_corr - safety_radius) / (inflation_radius - safety_radius)
-        # interpolate linearly from max_cost down to free_cost
         cost_grid[corridor_mask] = max_cost - (max_cost - free_cost) * ratio
 
-    # 3) d >= inflation_radius stays at free_cost
-
     return cost_grid
+
 
 
 # =======================
