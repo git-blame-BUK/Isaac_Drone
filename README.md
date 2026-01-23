@@ -34,6 +34,7 @@ Depth Camera → State Estimation (VIO) + Point Cloud → Pathfinding
 9. Maiden Flight ready 
 10. Maiden Flight succesfull xy stability +/- 5cm
 11. Offboard Maiden in demo Mode succesfull 
+12. Pathplanning succes with A*
 
 ## Hardware Gallery
 
@@ -46,12 +47,13 @@ Depth Camera → State Estimation (VIO) + Point Cloud → Pathfinding
 ### Completed Prototype
 
 <table>
-  <tr>
+  <tr
     <td><img src="https://github.com/user-attachments/assets/ab912019-94fd-4f83-a513-46b2cb706767" alt="Prototype 1" width="600"/></td>
     <td><img src="https://github.com/user-attachments/assets/f5631850-194a-46cc-8916-1bb056ddde30" alt="Prototype 2" width="600"/></td>
   </tr>
   <tr>
     <td><img src="https://github.com/user-attachments/assets/f324a5ea-7b7e-4e55-9cfe-fc3f16929abf" alt="Prototype 3" width="600"/></td>
     <td><img src="https://github.com/user-attachments/assets/64b54573-65f1-479c-a795-9ef405951ebf" alt="Prototype 4" width="600"/></td>
+    
   </tr>
 </table>
