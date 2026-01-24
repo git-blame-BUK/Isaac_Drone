@@ -254,7 +254,7 @@ class OffboardController(Node):
         now = self.get_clock().now()
 
         # Heartbeat check: lost MAVROS state messages?
-        if self.last_state_time is None or (now - self.last_state_time) > Duration(seconds=1.0):
+        if self.last_state_time is None or (now - self.last_state_time) > Duration(seconds=2.0):
             if self.last_connected is not False:
                 self.get_logger().warn("[WARN] lost MAVROS state heartbeat – treating as disconnected")
                 self.last_connected = False
@@ -378,7 +378,7 @@ class OffboardController(Node):
             if d < goal_tol:
                 self.traj_index += 1
                 if self.traj_index < len(self.traj_points):
-                    self.get_logger().info(f"[PHASE] reached trajectory point {self.traj_index} -> moving to next point")
+                    self.get_logger().info(f"[PHASE] reached trajectory point {self.traj_index} -> moving to next point{self.traj_points[self.traj_index]}")
                 else:
                     self.get_logger().info("[PHASE] reached final trajectory point -> switch to holding phase")
 
