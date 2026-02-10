@@ -104,8 +104,8 @@ class OffboardController(Node):
         self.hold_point: tuple[float, float, float] | None = None
 
         # Parameters
-        self.declare_parameter('takeoff_altitude', 0.5)  # 30 cm hovering alt
-        self.declare_parameter('goal_tolerance', 0.2)  # tolerance when goal reached
+        self.declare_parameter('takeoff_altitude', 0.5)  # 50 cm hovering alt
+        self.declare_parameter('goal_tolerance', 0.10)  # tolerance when goal reached
         self.declare_parameter('min_setpoint_rate', 10.0)  # Hz
         # Simple sequence phases:
         # None -> wait_offboard -> taking_off ->holding -> following_trajecory -> holding
