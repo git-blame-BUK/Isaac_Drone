@@ -24,6 +24,25 @@ class MissionManager(Node):
             history=QoSHistoryPolicy.KEEP_LAST,
             depth=1,
         )
+        
+        #--
+        # Subscriptions
+        #--
+
+        # Ready or Save for trajectory flag
+        # needed to start planner pipeline from Hovering point 
+        self.save_sub = self.create_subscription(
+           Save,
+           '/uav/save',
+           self.save_cb
+        )
+
+        self.current_save = None
+
+        def save_cb(self, msg: Save):
+             self.current_save = msg
+
+
 
         self.goal_pub = self.create_publisher(PoseStamped, "/uav/goal_pose", qos_latched)
 
@@ -53,7 +72,11 @@ class MissionManager(Node):
         msg.pose.position.z = z
         msg.pose.orientation.w = 1.0  # no yaw command here
 
-        self.goal_pub.publish(msg)
+        if self.current_save != None:
+            self.goal_pub.publish(msg)
+        else:
+            print("Not in Save state probably taking off or Landing... wait 10 secs")
+            exit 
         
         # publish 10 times (~2 seconds) then exit
         try:

@@ -81,6 +81,7 @@ class OffboardController(Node):
             SetMode,
             '/mavros/set_mode'
         )
+        
 
         # Internal state
         self.current_state: State | None = None
@@ -104,7 +105,7 @@ class OffboardController(Node):
         self.hold_point: tuple[float, float, float] | None = None
 
         # Parameters
-        self.declare_parameter('takeoff_altitude', 0.5)  # 50 cm hovering alt
+        self.declare_parameter('takeoff_altitude', 1.0)  # 50 cm hovering alt
         self.declare_parameter('goal_tolerance', 0.10)  # tolerance when goal reached
         self.declare_parameter('min_setpoint_rate', 10.0)  # Hz
         # Simple sequence phases:
@@ -117,7 +118,6 @@ class OffboardController(Node):
         self.get_logger().info("OffboardController initialized. Waiting for FCU state and pose...")
 
     # === Callbacks ===
-
     def state_cb(self, msg: State):
         """Cache FCU state and update heartbeat time."""
         self.current_state = msg
