@@ -39,43 +39,6 @@ Publishes:
 /mavros/setpoint_position/local 
 ```
  - Contains state machine (phases like: wait_offboard, takeoff, holding, follow_trajectory, land).
-
-## Graph
-:::Mermaid
-sequenceDiagram
-    participant OP as Operator
-    participant MM as Mission_manager
-    participant PL as Uav3DTrajectoryPlannerNode
-    participant ES as /nvblox_node/get_esdf_and_gradient
-    participant PC as Planner_core (AStar3DPlanner)
-    participant OC as OffboardController
-    participant MAV as MAVROS
-    participant FCU as PX4
-    participant RS as RealSense (cam)
-    participant IM as ARKv6 IMU
-
-    OP->>MM: select goal
-    MM->>PL: publish /uav/goal_pose
-    MAV->>PL: /mavros/local_position/pose (current UAV pose)
-
-    PL->>PL: compute AABB around start & goal (VoxelGridInfo)
-    PL->>ES: request ESDF (aabb_min, aabb_max, voxel_size)
-    ES-->>PL: return ESDF grid + origin + dims
-
-    PL->>PC: esdf_to_cost_grid(esdf_grid) -> cost_grid
-    PL->>PC: AStar3DPlanner.plan_path(start, goal)
-    PC-->>PL: path (world points)
-
-    PL->>OC: /uav/trajectory (nav_msgs/Path)
-    OC->>MAV: publish setpoints (/mavros/setpoint_position/local)
-    MAV->>FCU: relay setpoints to PX4
-
-    RS->>ES: depth/frames into nvblox pipeline
-    IM->>MAV: /imu0 (for VIO/estimator)
-
-:::
-
-
 ### Ideas For Leightweight Trjectory Planning
  1. Building a dense 3D Map in Numpy with Python and replanning at 2Hz is to heavy
     --> Slicing into 2D at Height and only considering e.g. 0,5 m above the refrence and below keeps 3D avoidance but decreases weight of the sliding singed distance fields.
