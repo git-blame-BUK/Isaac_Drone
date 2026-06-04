@@ -1,11 +1,17 @@
 # interface for managing missions in a pathfinding application
 
 #!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 import time
+
+import rclpy
 from geometry_msgs.msg import PoseStamped
+from rclpy.node import Node
+from rclpy.qos import (
+    QoSDurabilityPolicy,
+    QoSHistoryPolicy,
+    QoSProfile,
+    QoSReliabilityPolicy,
+)
 
 
 class MissionManager(Node):
@@ -24,39 +30,38 @@ class MissionManager(Node):
             history=QoSHistoryPolicy.KEEP_LAST,
             depth=1,
         )
-        
-        #--
+
+        # --
         # Subscriptions
-        #--
+        # --
 
         # Ready or Save for trajectory flag
-        # needed to start planner pipeline from Hovering point 
-        self.save_sub = self.create_subscription(
-           Save,
-           '/uav/save',
-           self.save_cb
+        # needed to start planner pipeline from Hovering point
+        self.save_sub = self.create_subscription(save, "/uav/save", self.save_cb)
+
+        self.goal_pub = self.create_publisher(
+            PoseStamped, "/uav/goal_pose", qos_latched
         )
-
-        self.current_save = None
-
-        def save_cb(self, msg: Save):
-             self.current_save = msg
-
-
-
-        self.goal_pub = self.create_publisher(PoseStamped, "/uav/goal_pose", qos_latched)
 
         # parameters (set via CLI or defaults)
         self.declare_parameter("frame_id", "odom")
-        self.declare_parameter("x", input("enter goal x e.g 1.0 for 1m forward  : ") or 0.0)
-        self.declare_parameter("y", input("enter goal y e.g 1.0 for 1m right  : ") or 0.0)
-        self.declare_parameter("z", input("enter goal z e.g 1.0 for 1m up     : ") or 0.5)
+        self.declare_parameter(
+            "x", input("enter goal x e.g 1.0 for 1m forward  : ") or 0.0
+        )
+        self.declare_parameter(
+            "y", input("enter goal y e.g 1.0 for 1m right  : ") or 0.0
+        )
+        self.declare_parameter(
+            "z", input("enter goal z e.g 1.0 for 1m up     : ") or 0.5
+        )
 
         # publish a few times so it’s super robust
         self._count = 0
         self._timer = self.create_timer(0.2, self._publish_goal_timer)
 
-        self.get_logger().info("MissionManager started. Publishing goal to /uav/goal_pose...")
+        self.get_logger().info(
+            "MissionManager started. Publishing goal to /uav/goal_pose..."
+        )
 
     def _publish_goal_timer(self):
         frame_id = str(self.get_parameter("frame_id").value)
@@ -72,27 +77,31 @@ class MissionManager(Node):
         msg.pose.position.z = z
         msg.pose.orientation.w = 1.0  # no yaw command here
 
-        if self.current_save != None:
+        if self.current_save == 1:
             self.goal_pub.publish(msg)
         else:
             print("Not in Save state probably taking off or Landing... wait 10 secs")
-            exit 
-        
+            exit()
+
         # publish 10 times (~2 seconds) then exit
         try:
             if self._count < 10:
                 self._count += 1
             self.goal_pub.publish(msg)
-            
-            i = input ("Goal published want to publish again ? y/n : ")
-            self.get_logger().info(f"Published goal #{self._count}: ({x}, {y}, {z}) in frame '{frame_id}'")
-            if i == 'y':
+
+            i = input("Goal published want to publish again ? y/n : ")
+            self.get_logger().info(
+                f"Published goal #{self._count}: ({x}, {y}, {z}) in frame '{frame_id}'"
+            )
+            if i == "y":
                 self._count = 0
-            elif i == 'n' or self._count >= 10:
-                self.get_logger().info("Goal publishing complete. Shutting down MissionManager.")
+            elif i == "n" or self._count >= 10:
+                self.get_logger().info(
+                    "Goal publishing complete. Shutting down MissionManager."
+                )
                 rclpy.shutdown()
-        except: 
-            # Ctl+C during sleep will raise exception 
+        except:
+            # Ctl+C during sleep will raise exception
             self.get_logger().info("something went wrong while publishing goal")
             rclpy.shutdown()
 

@@ -62,7 +62,7 @@ class OffboardController(Node):
         # Save state Publisher
         self.publish_save = self.creat_publisher(
             save,
-            "/mavros/save",
+            "/uav/save",
         )
 
         # === Service clients ===
@@ -175,11 +175,11 @@ class OffboardController(Node):
                         f"FCU not connected (connected={self.current_state.connected}). Waiting..."
                     )
 
-        def save_eval(save):
-            if save == 1:
-                self.publish_save(1)
-            else:
-                self.publish_save(0)
+    def save_eval(save):
+        if save == 1:
+            self.publish_save(1)
+        else:
+            self.publish_save(0)
 
     # === Not used in this demo, but kept for later ===
 
@@ -354,7 +354,7 @@ class OffboardController(Node):
                 self.phase = "taking_off"
 
         elif self.phase == "holding":
-            self.save_pub
+            self.publish_save(1)
             # If OFFBOARD is lost, return to waiting
             if state.mode != "OFFBOARD":
                 self.get_logger().warn(
