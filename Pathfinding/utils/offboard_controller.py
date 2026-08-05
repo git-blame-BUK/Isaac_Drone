@@ -264,6 +264,7 @@ class OffboardController(Node):
                     "[WARN] lost MAVROS state heartbeat – treating as disconnected"
                 )
                 self.last_connected = False
+                self.publish_safe(False)
             return
 
         state = self.current_state
@@ -288,6 +289,7 @@ class OffboardController(Node):
 
         # Require valid pose
         if self.current_pose is None:
+            self.publish_safe(False)
             return
 
         # Extract current pose
@@ -317,6 +319,7 @@ class OffboardController(Node):
         # Ensure phase initialized
         if self.phase is None:
             self.phase = "wait_offboard"
+            self.publish_safe(False)
 
         # === Simple phase machine ===
 
@@ -329,6 +332,7 @@ class OffboardController(Node):
             if state.mode == "OFFBOARD":
                 self.phase = "taking_off"
                 self.get_logger().info("[PHASE] OFFBOARD detected -> starting")
+                self.publish_safe(False)
 
         elif self.phase == "taking_off":
             # If OFFBOARD is lost, return to waiting
@@ -337,6 +341,7 @@ class OffboardController(Node):
                     "[PHASE] left OFFBOARD while going_up -> back to wait_offboard"
                 )
                 self.phase = "wait_offboard"
+                self.publish_safe(False)
                 return
 
             base_X, base_Y, base_Z = self.hold_point
@@ -355,7 +360,7 @@ class OffboardController(Node):
                 self.phase = "taking_off"
 
         elif self.phase == "holding":
-            self.publish_save(1)
+            self.publish_safe(True)
             # If OFFBOARD is lost, return to waiting
             if state.mode != "OFFBOARD":
                 self.get_logger().warn(
@@ -363,6 +368,7 @@ class OffboardController(Node):
                 )
                 self.phase = "wait_offboard"
                 self.save_pub
+                self.publish_save(False)
                 return
 
             hx, hy, hz = self.hold_point
@@ -375,6 +381,8 @@ class OffboardController(Node):
 
         elif self.phase == "following_trajectory":
             # If OFFBOARD is lost, return to waiting
+            # safe state for now only while holding dynmic in flight replanning //TODO
+            self.publish_safe(False)
             if state.mode != "OFFBOARD":
                 self.get_logger().warn(
                     "[PHASE] left OFFBOARD while following_trajectory -> back to wait_offboard"
