@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import math
-from turtle import save
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
@@ -11,7 +10,7 @@ from nav_msgs.msg import Path
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
-
+from std_msgs.msg import Bool
 
 class OffboardController(Node):
     """
@@ -60,9 +59,10 @@ class OffboardController(Node):
             PoseStamped, "/mavros/setpoint_position/local", 10
         )
         # Save state Publisher
-        self.publish_save = self.creat_publisher(
-            save,
+        self.save_pub = self.create_publisher(
+            Bool,
             "/uav/save",
+            10
         )
 
         # === Service clients ===
@@ -175,11 +175,12 @@ class OffboardController(Node):
                         f"FCU not connected (connected={self.current_state.connected}). Waiting..."
                     )
 
-    def save_eval(save):
-        if save == 1:
-            self.publish_save(1)
-        else:
-            self.publish_save(0)
+    def publish_safe(self, safe):
+        msg = Bool()
+        msg.data = safe
+        self.save_pub.publish(msg)
+
+
 
     # === Not used in this demo, but kept for later ===
 
