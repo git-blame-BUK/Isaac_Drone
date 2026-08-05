@@ -2,6 +2,7 @@
 
 #!/usr/bin/env python3
 import time
+from std_msgs.msg import Bool
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
@@ -37,7 +38,13 @@ class MissionManager(Node):
 
         # Ready or Save for trajectory flag
         # needed to start planner pipeline from Hovering point
-        self.save_sub = self.create_subscription(save, "/uav/save", self.save_cb)
+        self.save_to_Plan = False
+        self.save_sub = self.create_subscription(
+            Bool,
+            "/uav/save",
+            self.save_cb,
+            10)
+
 
         self.goal_pub = self.create_publisher(
             PoseStamped, "/uav/goal_pose", qos_latched
@@ -62,6 +69,9 @@ class MissionManager(Node):
         self.get_logger().info(
             "MissionManager started. Publishing goal to /uav/goal_pose..."
         )
+    def save_cb(self, msg):
+        self.save_to_Plan=msg.data
+        print("New Plan Safety Message:  ", self.save_to_Plan)
 
     def _publish_goal_timer(self):
         frame_id = str(self.get_parameter("frame_id").value)
