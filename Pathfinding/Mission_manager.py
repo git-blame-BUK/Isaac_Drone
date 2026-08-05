@@ -87,11 +87,11 @@ class MissionManager(Node):
         msg.pose.position.z = z
         msg.pose.orientation.w = 1.0  # no yaw command here
 
-        if self.current_save == 1:
+        if self.save_to_Plan:
             self.goal_pub.publish(msg)
         else:
-            print("Not in Save state probably taking off or Landing... wait 10 secs")
-            exit()
+            print("[Command Refused] not in save state")
+            return
 
         # publish 10 times (~2 seconds) then exit
         try:
