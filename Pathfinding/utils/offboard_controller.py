@@ -50,7 +50,10 @@ class OffboardController(Node):
 
         # Planned path from the planner
         self.traj_sub = self.create_subscription(
-            Path, "/uav/trajectory", self.trajectory_cb, 10
+            Path,
+            "/uav/trajectory",
+            self.trajectory_cb,
+            10
         )
 
         # === Publishers ===
