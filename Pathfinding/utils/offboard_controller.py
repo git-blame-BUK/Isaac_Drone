@@ -189,7 +189,7 @@ class OffboardController(Node):
 
     def arm(self):
         """
-        Arming is manual in this demo.
+        Arming is manual for safety 
         """
         raise NotImplementedError("arm() is not implemented for this demo.")
 
