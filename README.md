@@ -35,6 +35,7 @@ Depth Camera → State Estimation (VIO) + Point Cloud → Pathfinding
 10. Maiden Flight succesfull xy stability +/- 5cm
 11. Offboard Maiden in demo Mode succesfull 
 12. Pathplanning succes with A*
+13. Pathplanning, and safestate based dynamic replanning are ready
 
 ## Hardware Gallery
 
