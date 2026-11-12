@@ -370,7 +370,6 @@ class OffboardController(Node):
                     "[PHASE] left OFFBOARD while holding -> back to wait_offboard"
                 )
                 self.phase = "wait_offboard"
-                self.save_pub
                 self.publish_save(False)
                 return
 

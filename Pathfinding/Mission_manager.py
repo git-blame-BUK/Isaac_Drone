@@ -35,7 +35,7 @@ class MissionManager(Node):
         # --
         # Subscriptions
         # --
-
+        
         # Ready or Save for trajectory flag
         # needed to start planner pipeline from Hovering point
         self.save_to_Plan = False
@@ -87,17 +87,18 @@ class MissionManager(Node):
         msg.pose.position.z = z
         msg.pose.orientation.w = 1.0  # no yaw command here
 
-        if self.save_to_Plan:
-            self.goal_pub.publish(msg)
-        else:
-            print("[Command Refused] not in save state")
-            return
+        
 
         # publish 10 times (~2 seconds) then exit
         try:
-            if self._count < 10:
-                self._count += 1
-            self.goal_pub.publish(msg)
+            if self.save_to_Plan:
+                if self._count < 10:
+                    self._count += 1
+                    self.goal_pub.publish(msg)
+            else:
+                print("[Command Refused] not in save state")
+                return
+            
 
             i = input("Goal published want to publish again ? y/n : ")
             self.get_logger().info(
