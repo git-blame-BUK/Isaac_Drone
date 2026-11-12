@@ -17,7 +17,7 @@ from rclpy.qos import (
 
 class MissionManager(Node):
     """
-    Publishes a single PoseStamped goal to /uav/goal_pose.
+    Publishes a 10  PoseStamped(2 secs) goal to /uav/goal_pose.
     Uses TRANSIENT_LOCAL durability (ROS2 'latched' behavior) so the goal isn't missed
     if the planner subscribes slightly later.
     """
